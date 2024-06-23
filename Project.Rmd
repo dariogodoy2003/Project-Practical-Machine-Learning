@@ -1,0 +1,111 @@
+---
+title: "Project"
+author: "Dario Godoy"
+date: "2024-06-23"
+output: html_document
+---
+
+Load data
+
+```{r warning=FALSE, error=FALSE}
+library(caret)
+library(rpart)
+library(rpart.plot)
+```  
+
+```{r warning=FALSE, error=FALSE}
+set.seed(56789)
+``` 
+
+```{r}
+train<-read.csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv")
+test<-read.csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv")
+```
+
+Cleaning dataset
+
+```{r}
+NZV<- nearZeroVar(train, saveMetrics = TRUE)
+head(NZV)
+```
+
+```{r}
+train_clean<-train[,!NZV$nzv]
+test_clean<-test[,!NZV$nzv]
+```
+
+The first 5 columns are not important for prediction then I remove them.
+
+```{r}
+train_clean<- train_clean[,-(1:5)]
+test_clean<- test_clean[,-(1:5)]
+```
+
+I select columns with complete data.
+
+```{r}
+cols_NA<- colSums(is.na(train_clean))==0
+train_clean<-train_clean[,cols_NA]
+test_clean<-test_clean[,cols_NA]
+```
+
+Partitioning dataset
+
+```{r}
+set.seed(12345)
+inTrain<- createDataPartition(train_clean$classe,p=0.7, list=FALSE)
+train_set<- train_clean[inTrain,]
+validation_set<-train_clean[-inTrain,]
+```
+
+Data modeling
+
+Model 1: Decision tree
+```{r}
+model_1<- rpart(classe~., data= train_set, method = "class")
+prp(model_1)
+```
+
+```{r}
+predict_model_1<-predict(model_1, validation_set, type = "class")
+confusion_mat_DT<- confusionMatrix(factor(validation_set$classe),
+                                   predict_model_1,
+                                   mode = "everything")
+ACC_1<-confusion_mat_DT$overall[1]
+confusion_mat_DT
+```
+
+Model 2: Random Forest
+```{r}
+model_2<-train(classe ~ ., data = train_set, method = "rf", 
+               trControl = trainControl(method = "cv", 5), 
+               ntree = 250)
+model_2
+```
+```{r}
+predict_model_2<- predict(model_2,validation_set)
+confusion_mat_RF<- confusionMatrix(factor(validation_set$classe),
+                                   predict_model_2,
+                                   mode = "everything")
+ACC_2<-confusion_mat_RF$overall[1]
+confusion_mat_RF
+```
+
+Results of models
+
+```{r}
+Accuracy<- data.frame(Model = rbind("Decision Tree","Random Forest"), 
+                      Accuracy = rbind(ACC_1,ACC_2))
+Accuracy
+```
+Select model_2 (Random Forest)
+
+Predictions
+
+```{r}
+predictions<- predict(model_2,test_clean[,-54])
+test_predicted<-cbind(test_clean[,-54],classe_pred = predictions)
+predictions
+```
+
+
